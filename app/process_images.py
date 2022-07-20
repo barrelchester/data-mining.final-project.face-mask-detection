@@ -19,15 +19,25 @@ class ImageProcessor():
             print('Images already processed, delete %s/x.pt to reprocess' % self.config.tensor_path)
             return 
         
-        im_data = self.__get_image_data(self.config.ims_path1)
-        im_data.update(self.__get_image_data(self.config.ims_path2))
-        
-        self.__get_bounding_boxes(im_data)
-        
-        with open('%s/im_data.json' % self.config.tensor_path, 'w') as o:
-            json.dump(im_data, o)
+        if os.path.exists('%s/im_data.json' % self.config.tensor_path):
+            with open('%s/im_data.json' % self.config.tensor_path, 'r') as f:
+                im_data = json.load(f)
+        else:
+            print('Loading image data...')
+            im_data = self.__get_image_data(self.config.ims_path1)
+            im_data.update(self.__get_image_data(self.config.ims_path2))
+
+            print('Getting bounding box info...')
+            self.__get_bounding_boxes(im_data)
+
+            print('Writing image data to %s/im_data.json' % self.config.tensor_path)
+            with open('%s/im_data.json' % self.config.tensor_path, 'w') as o:
+                json.dump(im_data, o)
             
+        print('Cropping and resizing and storing tensors...')
         self.__crop_and_resize(im_data)
+        
+        print('Done!')
         
         
     def __get_image_data(self, ims_path):
@@ -106,7 +116,6 @@ class ImageProcessor():
     
     
     def __get_bounding_boxes(self, im_data):
-        i=0
         for path, _, fns in os.walk(self.config.labs_path):
             for fn in fns:
                 if not fn.endswith('.txt'):
@@ -136,10 +145,6 @@ class ImageProcessor():
                     continue
 
                 im_data[im_name]['bb'] = {'x':x, 'y':y, 'w':w, 'h':h}
-
-                i+=1
-                if i%100==0:
-                    print(i)
                     
                     
     def __crop_and_resize(self, im_data):
@@ -151,7 +156,12 @@ class ImageProcessor():
         y_mask_type = []
         y_angle = []
 
+        i=0
         for im_name, im_dict in im_data.items():
+            i+=1
+            if i%100==0:
+                print(i)
+                
             im = cv2.cvtColor(cv2.imread(im_dict['path']), cv2.COLOR_BGR2RGB)
             sz = im.shape
 
