@@ -15,8 +15,8 @@ class ImageProcessor():
         
         
     def process_images(self):
-        if os.path.exists('%s/x.pt' % self.config.tensor_path):
-            print('Images already processed, delete %s/x.pt to reprocess' % self.config.tensor_path)
+        if os.path.exists('%s/x_%d.pt' % (self.config.tensor_path, self.config.im_size)):
+            print('Images already processed, delete %s/x_%d.pt to reprocess' % (self.config.tensor_path, self.config.im_size))
             return 
         
         if os.path.exists('%s/im_data.json' % self.config.tensor_path):
@@ -210,46 +210,101 @@ class ImageProcessor():
         im_arrays = torch.from_numpy(im_arrays)
         #normalize
         im_arrays = ((im_arrays/255) - self.config.imnet_mean) / self.config.imnet_std
+        #need to swap the RGB dim from last to second index
         im_arrays = torch.swapaxes(im_arrays, 3, 1)
         print(im_arrays.shape)
 
-        print('saving %s/x.pt' % (self.config.tensor_path))
-        torch.save(im_arrays, '%s/x.pt' % (self.config.tensor_path))
-        torch.save(torch.tensor(y_binary), '%s/y_binary.pt' % (self.config.tensor_path))
-        torch.save(torch.tensor(y_subj), '%s/y_subj.pt' % (self.config.tensor_path))
-        torch.save(torch.tensor(y_mask_stat), '%s/y_mask_stat.pt' % (self.config.tensor_path))
-        torch.save(torch.tensor(y_mask_type), '%s/y_mask_type.pt' % (self.config.tensor_path))
-        torch.save(torch.tensor(y_angle), '%s/y_angle.pt' % (self.config.tensor_path))
+        print('saving %s/x_%d.pt' % (self.config.tensor_path, self.config.im_size))
+        torch.save(im_arrays, '%s/x_%d.pt' % (self.config.tensor_path, self.config.im_size))
+        
+        if not os.path.exists('%s/y_binary.pt' % (self.config.tensor_path)):
+            torch.save(torch.LongTensor(y_binary), '%s/y_binary.pt' % (self.config.tensor_path))
+            torch.save(torch.LongTensor(y_subj), '%s/y_subj.pt' % (self.config.tensor_path))
+            torch.save(torch.LongTensor(y_mask_stat), '%s/y_mask_stat.pt' % (self.config.tensor_path))
+            torch.save(torch.LongTensor(y_mask_type), '%s/y_mask_type.pt' % (self.config.tensor_path))
+            torch.save(torch.LongTensor(y_angle), '%s/y_angle.pt' % (self.config.tensor_path))
 
-        with open('%s/im_names.txt' % self.config.tensor_path, 'w') as o:
-            o.write('\n'.join(im_names))
+            with open('%s/im_names.txt' % self.config.tensor_path, 'w') as o:
+                o.write('\n'.join(im_names))
+                
+                
+    def flip_augment_class(self, im_tensors, y, class_idx_to_flip=1):
+        #get target class instances
+        trg_class_idx = (y==class_idx_to_flip).nonzero(as_tuple=True)[0]
+        trg_class_tensors = im_tensors[trg_class_idx]
+        
+        print('Flipping %d instances of class index %d' % (trg_class_tensors.size(0), class_idx_to_flip))
+        
+        #shape (3 x H x W), flip W, index 2
+        trg_class_flipped_tensors = torch.flip(trg_class_tensors, dims=(2,))
+        
+        #add flipped images and targets
+        im_tensors = torch.cat((im_tensors, trg_class_flipped_tensors), 0)
+        y = torch.cat((y, torch.ones(trg_class_flipped_tensors.size(0)) * class_idx_to_flip))
+        print('New dataset size: %s' % im_tensors.size(0))
+        
+        #shuffle all
+        print('Shuffling...')
+        idx = torch.randperm(im_tensors.size(0))
+        im_tensors = im_tensors[idx]
+        y = y[idx]
+
+        return im_tensors, y
+    
+    
+    def balance_classes(self, im_tensors, y):
+        class_labs, cts = np.unique(y, return_counts=True)
+        minority_ct = cts.min()
+        print('Truncating all class counts to min class count %d' % minority_ct)
+        
+        class_x = []
+        class_y = []
+        for class_lab in class_labs.tolist():
+            trg_class_idx = (y==class_lab).nonzero(as_tuple=True)[0][:minority_ct]
+            class_x.append(im_tensors[trg_class_idx])
+            class_y.append(torch.ones(trg_class_idx.size(0)) * class_lab)
+            
+        balanced_x = torch.cat(class_x, 0)
+        balanced_y = torch.cat(class_y, 0)
+        
+        print('Shuffling...')
+        idx = torch.randperm(balanced_x.size(0))
+        balanced_x = balanced_x[idx]
+        balanced_y = balanced_y[idx]
+        
+        print('X: %s, y: %s' % (balanced_x.size(0), balanced_y.size(0)))
+        
+        return balanced_x, balanced_y
             
             
     def load_data(self):
-        im_arrays = torch.load('%s/x.pt' % (self.config.tensor_path))
+        im_arrays = torch.load('%s/x_%d.pt' % (self.config.tensor_path, self.config.im_size))
 
         with open('%s/im_names.txt' % self.config.tensor_path, 'r') as f:
             im_names = f.read().split('\n')
 
-        y_binary = torch.load('%s/y_binary.pt' % (self.config.tensor_path))
-        y_subj = torch.load('%s/y_subj.pt' % (self.config.tensor_path))
-        y_mask_stat = torch.load('%s/y_mask_stat.pt' % (self.config.tensor_path))
-        y_mask_type = torch.load('%s/y_mask_type.pt' % (self.config.tensor_path))
-        y_angle = torch.load('%s/y_angle.pt' % (self.config.tensor_path))
+        y_binary = torch.load('%s/y_binary.pt' % (self.config.tensor_path)).type(torch.LongTensor)
+        y_subj = torch.load('%s/y_subj.pt' % (self.config.tensor_path)).type(torch.LongTensor)
+        y_mask_stat = torch.load('%s/y_mask_stat.pt' % (self.config.tensor_path)).type(torch.LongTensor)
+        y_mask_type = torch.load('%s/y_mask_type.pt' % (self.config.tensor_path)).type(torch.LongTensor)
+        y_angle = torch.load('%s/y_angle.pt' % (self.config.tensor_path)).type(torch.LongTensor)
 
         return im_arrays, im_names, y_binary, y_subj, y_mask_stat, y_mask_type, y_angle
             
             
     def show_image(self, im_index, im_arrays, im_names, y_binary, y_subj, y_mask_stat, y_mask_type, y_angle):
-        im_name = im_names[im_index]
+        self.show_image(im_arrays[im_index], im_names[im_index], y_binary[im_index], y_subj[im_index], 
+                        y_mask_stat[im_index], y_mask_type[im_index], y_angle[im_index])
+        
+        
+    def show_image(self, im_tensor, im_name, y_binary, y_subj, y_mask_stat, y_mask_type, y_angle):
+        worn_correctly = y_binary.item()
+        subject = self.config.idx2lab_subj[y_subj.item()]
+        mask_status = self.config.idx2lab_mask_stat[y_mask_stat.item()]
+        mask_type = self.config.idx2lab_mask_type[y_mask_type.item()]
+        head_angle = self.config.idx2lab_angle[y_angle.item()]
 
-        worn_correctly = y_binary[im_index].item()
-        subject = self.config.idx2lab_subj[y_subj[im_index].item()]
-        mask_status = self.config.idx2lab_mask_stat[y_mask_stat[im_index].item()]
-        mask_type = self.config.idx2lab_mask_type[y_mask_type[im_index].item()]
-        head_angle = self.config.idx2lab_angle[y_angle[im_index].item()]
-
-        im_tensor = im_arrays[im_index]
+        #unswap the color channel from index 0 (needed for model) back to index 2
         im_tensor = torch.swapaxes(im_tensor, 0, 2)
         #denormalize
         im_tensor = ((im_tensor * self.config.imnet_std) + self.config.imnet_mean) * 255
@@ -261,6 +316,14 @@ class ImageProcessor():
         print('Mask type: %s' % self.config.mask_type_orig[mask_type])
         print('Head angle and foreground/background: %s' % head_angle)
 
+        plt.imshow(im_tensor.numpy().astype(np.int32))
+        plt.show()
+        
+    def show_image(self, im_tensor):
+        #unswap the color channel from index 0 (needed for model) back to index 2
+        im_tensor = torch.swapaxes(im_tensor, 0, 2)
+        #denormalize
+        im_tensor = ((im_tensor * self.config.imnet_std) + self.config.imnet_mean) * 255
         plt.imshow(im_tensor.numpy().astype(np.int32))
         plt.show()
                     
