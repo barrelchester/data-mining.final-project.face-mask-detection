@@ -5,22 +5,22 @@ class Config():
     def __init__(self):
         self.im_size = 128
         
-        self.wwmr_path = '../data/real'
+        self.wwmr_path = '../../data/real'
         self.wwmr_ims_path1 = '%s/WWMR-DB - Part 1' % self.wwmr_path
         self.wwmr_ims_path2 = '%s/WWMR-DB - Part 2' % self.wwmr_path
         self.wwmr_labs_path = '%s/WWMR-DB - Labels/Labels/YOLO' % self.wwmr_path
 
-        self.fmd_path = '../data/face_mask_detection'
+        self.fmd_path = '../../data/face_mask_detection'
         self.fmd_ims_path = '%s/images' % self.fmd_path
         self.fmd_annots_path = '%s/annotations' % self.fmd_path
 
-        self.mfn_path = '../data/masked_face_net'
+        self.mfn_path = '../../data/masked_face_net'
         self.mfn_ims_path = '%s/images' % self.mfn_path
 
-        self.gan_path = '../data/gan_faces'
+        self.gan_path = '../../data/gan_faces'
         self.gan_ims_path = '%s/images' % self.gan_path
         
-        self.combined_data_path = '../data/combined_3class'
+        self.combined_data_path = '../../data/combined_3class'
 
         self.lab2idx = {'without_mask':0, 'with_mask':1, 'mask_weared_incorrect':2}
         if not os.path.exists('%s/lab2idx.pkl' % self.combined_data_path):
