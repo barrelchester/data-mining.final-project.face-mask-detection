@@ -13,6 +13,7 @@ class ImageUtils():
     
     
     def show_image(self, im_tensor):
+        '''Display an image'''
         #unswap the color channel from index 0 (needed for model) back to index 2
         im_tensor = torch.swapaxes(im_tensor, 0, 2)
         #denormalize
@@ -22,6 +23,7 @@ class ImageUtils():
         
     
     def flip_augment_class(self, im_tensors, y, im_names, class_idx_to_flip=1, num=0):
+        '''Augment a class of images by flipping them horizontally'''
         #get target class instances
         trg_class_idx = (y==class_idx_to_flip).nonzero(as_tuple=True)[0]
         if num:
@@ -50,6 +52,7 @@ class ImageUtils():
     
     
     def balance_classes(self, im_tensors, y):
+        '''Trim class instances to that of the minimum class to get a balanced set'''
         class_labs, cts = np.unique(y, return_counts=True)
         minority_ct = cts.min()
         print('Truncating all class counts to min class count %d' % minority_ct)
@@ -75,6 +78,7 @@ class ImageUtils():
     
     
     def resize_image_tensors(self, xs, new_size):
+        '''Resize the image tensors for a model with specific required dimensions'''
         xs_resized = []
         
         for i in range(xs.shape[0]):
@@ -100,6 +104,7 @@ class WWMRImageProcessor():
         
         
     def process_images(self):
+        '''Prepare the WWMR images and store image tensors, targets, and image names.'''
         if os.path.exists('%s/x_%d.pt' % (self.config.wwmr_path, self.config.im_size)):
             print('Images already processed, delete %s/x_%d.pt to reprocess' % (self.config.wwmr_path, self.config.im_size))
             return 
@@ -187,6 +192,7 @@ class WWMRImageProcessor():
     
     
     def __get_bounding_boxes(self, im_data):
+        '''Get the face bounding box info for the images from the provided annotation file'''
         for path, _, fns in os.walk(self.config.wwmr_labs_path):
             for fn in fns:
                 if not fn.endswith('.txt'):
@@ -219,6 +225,7 @@ class WWMRImageProcessor():
                     
                     
     def __crop_and_resize(self, im_data):
+        '''Crop and resize the images'''
         im_arrays = []
         im_names = []
         y_3class = []
@@ -285,6 +292,7 @@ class WWMRImageProcessor():
                 
             
     def load_data(self):
+        '''Load the processed image tensors, targets, and file names'''
         x = torch.load('%s/x_%d.pt' % (self.config.wwmr_path, self.config.im_size))
 
         with open('%s/im_names.txt' % self.config.wwmr_path, 'r') as f:
@@ -296,10 +304,12 @@ class WWMRImageProcessor():
             
             
     def show_image(self, im_index, im_arrays, im_names, y_3class):
+        '''Display an image'''
         self.show_image(im_arrays[im_index], im_names[im_index], y_3class[im_index])
         
         
     def show_image(self, im_tensor, im_name, y_3class):
+        '''Display an image'''
         mask_status = self.config.idx2lab[y_3class.item()]
 
         #unswap the color channel from index 0 (needed for model) back to index 2
@@ -324,10 +334,12 @@ class FMDImageProcessor():
         
         
     def process_images(self, min_crop_dim=70):
+        '''Prepare the FMD images and store image tensors, targets, and image names.'''
         self.__extract_and_resize_faces(min_crop_dim)
         
         
     def __extract_and_resize_faces(self, min_crop_dim):
+        '''Use the provided bounding box information to extract and resize the faces.'''
         im_arrays = []
         im_names = []
         y = []
@@ -381,6 +393,7 @@ class FMDImageProcessor():
                 im_names.append(im_name)
                 y.append(lab_idx)
 
+        #reshape the data as needed by the models
         im_arrays = np.reshape(im_arrays, (-1, self.config.im_size, self.config.im_size, 3))
 
         im_arrays = torch.from_numpy(im_arrays)
@@ -399,6 +412,7 @@ class FMDImageProcessor():
 
 
     def __get_bbs(self, annot_path):
+        '''Get the provided bounding box info'''
         bbs = []
         with open(annot_path) as f:
             bb = []
@@ -428,6 +442,7 @@ class FMDImageProcessor():
     
     
     def load_data(self):
+        '''Load the prepared data'''
         fmd_x = torch.load('%s/x_%d.pt' % (self.config.fmd_path, self.config.im_size))
         fmd_y = torch.load('%s/y.pt' % (self.config.fmd_path)).type(torch.LongTensor)
         with open('%s/im_names.txt' % self.config.fmd_path, 'r') as f:
@@ -437,6 +452,7 @@ class FMDImageProcessor():
     
     
     def show_image(self, im_tensor):
+        '''Display an image'''
         #unswap the color channel from index 0 (needed for model) back to index 2
         im_tensor = torch.swapaxes(im_tensor, 0, 2)
         
@@ -455,6 +471,7 @@ class MFNImageProcessor():
         
         
     def process_images(self, num_ims=0):
+        '''Prepare the MFN images and store image tensors, targets, and image names.'''
         mfn_x = []
         mfn_y = []
         mfn_names = []
@@ -474,6 +491,7 @@ class MFNImageProcessor():
                 
         mfn_y = torch.tensor(mfn_y, dtype=torch.long)
 
+        #reshape the data as needed by the models
         mfn_x = np.reshape(mfn_x, (-1, self.config.im_size, self.config.im_size, 3))
         mfn_x = torch.from_numpy(mfn_x)
         
@@ -490,6 +508,7 @@ class MFNImageProcessor():
             
             
     def load_data(self):
+        '''Load the prepared data'''
         mfn_x = torch.load('%s/x_%d.pt' % (self.config.mfn_path, self.config.im_size))
         mfn_y = torch.load('%s/y.pt' % (self.config.mfn_path)).type(torch.LongTensor)
         with open('%s/im_names.txt' % self.config.mfn_path, 'r') as f:
@@ -499,6 +518,7 @@ class MFNImageProcessor():
     
             
     def show_image(self, im_tensor):
+        '''Show an image'''
         #unswap the color channel from index 0 (needed for model) back to index 2
         im_tensor = torch.swapaxes(im_tensor, 0, 2)
         
@@ -517,11 +537,14 @@ class GANImageProcessor():
         
         
     def process_images(self, num_ims=0):
+        '''Prepare the GAN images and store image tensors, targets, and image names.'''
         gan_x = []
         gan_y = []
         gan_names = []
         for fn in os.listdir(self.config.gan_ims_path):
             im = cv2.cvtColor(cv2.imread('%s/%s' % (self.config.gan_ims_path, fn)), cv2.COLOR_BGR2RGB)
+            
+            #resize the image
             im_new = cv2.resize(im, (self.config.im_size, self.config.im_size), interpolation = cv2.INTER_LINEAR)
             
             gan_x.append(im_new)
@@ -536,10 +559,11 @@ class GANImageProcessor():
                 
         gan_y = torch.tensor(gan_y, dtype=torch.long)
 
+        #reshape the data as needed by the models
         gan_x = np.reshape(gan_x, (-1, self.config.im_size, self.config.im_size, 3))
         gan_x = torch.from_numpy(gan_x)
         
-        #normalize
+        #normalize the images
         gan_x = ((gan_x/255) - self.config.imnet_mean) / self.config.imnet_std
         gan_x = torch.swapaxes(gan_x, 3, 1)
 
@@ -551,6 +575,7 @@ class GANImageProcessor():
             
             
     def load_data(self):
+        '''Load the prepared data'''
         gan_x = torch.load('%s/x_%d.pt' % (self.config.gan_path, self.config.im_size))
         gan_y = torch.load('%s/y.pt' % (self.config.gan_path)).type(torch.LongTensor)
         with open('%s/im_names.txt' % self.config.gan_path, 'r') as f:
@@ -560,6 +585,7 @@ class GANImageProcessor():
     
             
     def show_image(self, im_tensor):
+        '''Display an image'''
         #unswap the color channel from index 0 (needed for model) back to index 2
         im_tensor = torch.swapaxes(im_tensor, 0, 2)
         
